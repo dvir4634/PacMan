@@ -9,7 +9,7 @@ class Coin:
 
 class Character(arcade.Sprite):
     def __init__(self,center_x,center_y,speed):
-        super().__init__()
+        super().__init__(center_x)
         self.texture = arcade.make_circle_texture(90,arcade.color.BLUE)
         self.center_x = center_x
         self.center_y = center_y
