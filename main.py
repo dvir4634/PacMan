@@ -1,4 +1,4 @@
-import random
+import arcade
 
 class Coin:
     def __init__(self,center_x,center_y):
@@ -7,14 +7,13 @@ class Coin:
         self.value = 10
 
 
-class Character:
+class Character(arcade.Sprite):
     def __init__(self,center_x,center_y,speed):
+        super().__init__()
+        self.texture = arcade.make_circle_texture(90,arcade.color.BLUE)
         self.center_x = center_x
-        self.center_y = center_y#
+        self.center_y = center_y
         self.speed = speed
-        self.change_x = 0
-        self.change_y = 0
-
 
 class Player(Character):
     def __init__(self,center_x,center_y,speed):
