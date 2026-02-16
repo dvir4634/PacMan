@@ -10,62 +10,21 @@ class Coin:
 class Character:
     def __init__(self,center_x,center_y,speed):
         self.center_x = center_x
-        self.center_y = center_y#
-        self.speed = speed
-        self.change_x = 0
-        self.change_y = 0
-
-import arcade
-
-
-class Player(arcade.Sprite):
-    def __init__(
-        self,
-        image_path: str,
-        scale: float,
-        center_x: float,
-        center_y: float,
-        speed: float,
-        screen_width: int,
-        screen_height: int
-    ):
-        super().__init__(image_path, scale)
-
-        # מיקום התחלתי
-        self.center_x = center_x
         self.center_y = center_y
-
-        # תנועה
+        self.speed = speed
         self.change_x = 0
         self.change_y = 0
-        self.speed = speed
 
-        # גבולות מסך
-        self.screen_width = screen_width
-        self.screen_height = screen_height
 
-        # נתוני שחקן
+class Player(Character):
+    def __init__(self,center_x,center_y,speed):
+        super().__init__(center_x,center_y,speed)
         self.score = 0
         self.lives = 3
 
-    def update(self):
-        """
-        נקרא אוטומטית ע"י Arcade בכל פריים
-        """
-
-        # תנועה
-        self.center_x += self.change_x * self.speed
-        self.center_y += self.change_y * self.speed
-
-        # חסימת יציאה מהמסך
-        if self.left < 0:
-            self.left = 0
-        if self.right > self.screen_width:
-            self.right = self.screen_width
-        if self.bottom < 0:
-            self.bottom = 0
-        if self.top > self.screen_height:
-            self.top = self.screen_height
+    def move(self):
+        self.center_x += self.change_x*self.speed
+        self.center_y += self.change_y*self.speed
 
 
 class Enemy(Character):
