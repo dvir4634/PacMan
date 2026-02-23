@@ -1,72 +1,17 @@
 import arcade
+import random
 
-class Coin:
-    def __init__(self,center_x,center_y):
-        self.center_x = center_x
-        self.center_y = center_y
-        self.value = 10
+# =====================
+# קבועים
+# =====================
+TILE_SIZE = 40
+SCREEN_WIDTH = 11 * TILE_SIZE
+SCREEN_HEIGHT = 4 * TILE_SIZE
+SCREEN_TITLE = "Arcade Pacman"
 
+PLAYER_SPEED = 3
+ENEMY_SPEED = 2
 
-class Character(arcade.Sprite):
-    def __init__(self,center_x,center_y,speed):
-        super().__init__(center_x)
-        self.texture = arcade.make_circle_texture(90,arcade.color.BLUE)
-        self.center_x = center_x
-        self.center_y = center_y
-        self.speed = speed
-
-class Player(Character):
-    def __init__(self,center_x,center_y,speed):
-        super().__init__(center_x,center_y,speed)
-        self.score = 0
-        self.lives = 3
-
-    def move(self):
-        self.center_x += self.change_x*self.speed
-        self.center_y += self.change_y*self.speed
-
-
-class Enemy(Character):
-    def __init__(self,center_x,center_y,speed):
-        super().__init__(center_x,center_y,speed)
-        self.time_to_change_direction = 0
-
-    def pick_new_direction(self):
-        directions = [(0,1),(0,-1),(1,0),(-1,0),(0,0)]
-        self.change_x, self.change_y = random.choice(directions)
-        self.time_to_change_direction = random.uniform(0.3, 1.0)
-
-    def update(self, time_delta=1/60):
-        self.time_to_change_direction -= time_delta
-        if self.time_to_change_direction <= 0:
-            self.pick_new_direction()
-        self.center_x += self.change_x*self.speed
-        self.center_y += self.change_y*self.speed
-
-
-class Wall:
-    def __init__(self, center_x, center_y):
-        self.center_x = center_x
-        self.center_y = center_y
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# מפה לדוגמה: # = קיר, . = מטבע, P = פקמן, G = רוח, רווח = כלום
 LEVEL_MAP = [
     "###########",
     "#P....G...#",
@@ -74,170 +19,206 @@ LEVEL_MAP = [
     "###########",
 ]
 
+# =====================
+# מחלקות
+# =====================
+class Player(arcade.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.texture = arcade.make_circle_texture(15, arcade.color.YELLOW)
+        self.center_x = x
+        self.center_y = y
+        self.start_x = x
+        self.start_y = y
+        self.score = 0
+        self.lives = 3
 
-class ConsolePacmanGame:
-    """משחק פקמן טקסטואלי לקונסול."""
 
-    def __init__(self, level_map):
-        self.level_map = level_map
-        self.height = len(level_map)
-        self.width = len(level_map[0]) if self.height > 0 else 0
+class Enemy(arcade.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.texture = arcade.make_circle_texture(15, arcade.color.RED)
+        self.center_x = x
+        self.center_y = y
+        self.change_x = ENEMY_SPEED
+        self.change_y = 0
 
-        self.walls = []
-        self.coins = []
-        self.ghosts = []
+    def pick_new_direction(self):
+        directions = [
+            (ENEMY_SPEED, 0),
+            (-ENEMY_SPEED, 0),
+            (0, ENEMY_SPEED),
+            (0, -ENEMY_SPEED),
+        ]
+        self.change_x, self.change_y = random.choice(directions)
+
+
+class Coin(arcade.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.texture = arcade.make_circle_texture(8, arcade.color.GOLD)
+        self.center_x = x
+        self.center_y = y
+        self.value = 10
+
+
+# =====================
+# משחק
+# =====================
+class Game(arcade.Window):
+    def __init__(self):
+        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
+
+        self.wall_list = arcade.SpriteList()
+        self.coin_list = arcade.SpriteList()
+        self.enemy_list = arcade.SpriteList()
+        self.player_list = arcade.SpriteList()
+
         self.player = None
+        self.physics_engine = None
 
-        self.start_x = 0
-        self.start_y = 0
-
-        self.setup()
+        self.game_state = "PLAYING"  # אפשרויות: PLAYING, GAME_OVER, WIN
 
     def setup(self):
-        self.walls = []
-        self.coins = []
-        self.ghosts = []
+        # מחיקות של רשימות קיימות (במקרה של Restart)
+        self.wall_list = arcade.SpriteList()
+        self.coin_list = arcade.SpriteList()
+        self.enemy_list = arcade.SpriteList()
+        self.player_list = arcade.SpriteList()
         self.player = None
 
-        for y, row in enumerate(reversed(self.level_map)):
-            for x, cell in enumerate(row):
+        for row_i, row in enumerate(reversed(LEVEL_MAP)):
+            for col_i, cell in enumerate(row):
+
+                x = col_i * TILE_SIZE + TILE_SIZE // 2
+                y = row_i * TILE_SIZE + TILE_SIZE // 2
+
                 if cell == "#":
-                    self.walls.append(Wall(x, y))
+                    wall = arcade.SpriteSolidColor(
+                        TILE_SIZE, TILE_SIZE, arcade.color.BLUE
+                    )
+                    wall.center_x = x
+                    wall.center_y = y
+                    self.wall_list.append(wall)
+
                 elif cell == ".":
-                    self.coins.append(Coin(x, y))
+                    self.coin_list.append(Coin(x, y))
+
                 elif cell == "P":
-                    self.player = Player(x, y, 1)
-                    self.start_x = x
-                    self.start_y = y
+                    self.player = Player(x, y)
+                    self.player_list.append(self.player)
+
                 elif cell == "G":
-                    self.ghosts.append(Enemy(x, y, 1))
+                    self.enemy_list.append(Enemy(x, y))
 
-        if self.player is None:
-            self.player = Player(self.width // 2, self.height // 2, 1)
-            self.start_x = self.player.center_x
-            self.start_y = self.player.center_y
+        self.physics_engine = arcade.PhysicsEngineSimple(
+            self.player, self.wall_list
+        )
 
-    def render(self):
-        grid = [[" " for _ in range(self.width)] for _ in range(self.height)]
+        self.game_state = "PLAYING"
 
-        for wall in self.walls:
-            grid[int(wall.center_y)][int(wall.center_x)] = "#"
+    def on_draw(self):
+        self.clear()  # שימוש נכון במקום start_render
 
-        for coin in self.coins:
-            grid[int(coin.center_y)][int(coin.center_x)] = "."
-
-        for ghost in self.ghosts:
-            grid[int(ghost.center_y)][int(ghost.center_x)] = "G"
-
-        grid[int(self.player.center_y)][int(self.player.center_x)] = "P"
-
-        print("\n" + "=" * (self.width + 2))
-        for row in reversed(grid):
-            print("|" + "".join(row) + "|")
-        print("=" * (self.width + 2))
-        print(f"Score: {self.player.score} | Lives: {self.player.lives}")
-
-    def is_wall(self, x, y):
-        for wall in self.walls:
-            if int(wall.center_x) == int(x) and int(wall.center_y) == int(y):
-                return True
-        return False
-
-    def get_coin_at(self, x, y):
-        for coin in self.coins:
-            if int(coin.center_x) == int(x) and int(coin.center_y) == int(y):
-                return coin
-        return None
-
-    def get_ghost_at(self, x, y):
-        for ghost in self.ghosts:
-            if int(ghost.center_x) == int(x) and int(ghost.center_y) == int(y):
-                return ghost
-        return None
-
-    def handle_player_move(self, direction):
-        dx, dy = 0, 0
-        if direction == "w":
-            dy = 1
-        elif direction == "s":
-            dy = -1
-        elif direction == "a":
-            dx = -1
-        elif direction == "d":
-            dx = 1
+        if self.game_state == "PLAYING":
+            self.wall_list.draw()
+            self.coin_list.draw()
+            self.enemy_list.draw()
+            self.player_list.draw()
+            arcade.draw_text(
+                f"Score: {self.player.score}   Lives: {self.player.lives}",
+                10,
+                SCREEN_HEIGHT - 20,
+                arcade.color.WHITE,
+                14,
+            )
         else:
-            return
+            # מסך סיום
+            if self.game_state == "GAME_OVER":
+                arcade.draw_text(
+                    "GAME OVER",
+                    SCREEN_WIDTH / 2,
+                    SCREEN_HEIGHT / 2 + 20,
+                    arcade.color.RED,
+                    36,
+                    anchor_x="center",
+                )
+            else:
+                arcade.draw_text(
+                    "YOU WIN!",
+                    SCREEN_WIDTH / 2,
+                    SCREEN_HEIGHT / 2 + 20,
+                    arcade.color.GREEN,
+                    36,
+                    anchor_x="center",
+                )
 
-        new_x = self.player.center_x + dx
-        new_y = self.player.center_y + dy
+            arcade.draw_text(
+                "Press ENTER to Restart",
+                SCREEN_WIDTH / 2,
+                SCREEN_HEIGHT / 2 - 20,
+                arcade.color.WHITE,
+                20,
+                anchor_x="center",
+            )
 
-        if self.is_wall(new_x, new_y):
-            return
+    def on_update(self, delta_time):
+        if self.game_state != "PLAYING":
+            return  # לא מעדכנים כשבמסך סיום
 
-        self.player.center_x = new_x
-        self.player.center_y = new_y
+        self.physics_engine.update()
 
-        coin = self.get_coin_at(new_x, new_y)
-        if coin is not None:
+        for coin in arcade.check_for_collision_with_list(
+            self.player, self.coin_list
+        ):
             self.player.score += coin.value
-            self.coins.remove(coin)
+            coin.remove_from_sprite_lists()
 
-        ghost = self.get_ghost_at(new_x, new_y)
-        if ghost is not None:
-            self.player.lives -= 1
-            print("ננגסת ע\"י רוח! חיים -1")
-            self.reset_player_position()
+        for enemy in self.enemy_list:
+            enemy.center_x += enemy.change_x
+            enemy.center_y += enemy.change_y
 
-    def reset_player_position(self):
-        self.player.center_x = self.start_x
-        self.player.center_y = self.start_y
+            if arcade.check_for_collision_with_list(enemy, self.wall_list):
+                enemy.center_x -= enemy.change_x
+                enemy.center_y -= enemy.change_y
+                enemy.pick_new_direction()
 
-    def move_ghosts(self):
-        for ghost in self.ghosts:
-            if random.random() < 0.3 or (ghost.change_x == 0 and ghost.change_y == 0):
-                ghost.pick_new_direction()
-
-            new_x = ghost.center_x + ghost.change_x
-            new_y = ghost.center_y + ghost.change_y
-
-            if self.is_wall(new_x, new_y):
-                continue
-
-            ghost.center_x = new_x
-            ghost.center_y = new_y
-
-            if int(ghost.center_x) == int(self.player.center_x) and int(ghost.center_y) == int(self.player.center_y):
+            if arcade.check_for_collision(self.player, enemy):
                 self.player.lives -= 1
-                print("רוח תפסה אותך! חיים -1")
-                self.reset_player_position()
+                self.player.center_x = self.player.start_x
+                self.player.center_y = self.player.start_y
+                self.player.change_x = 0
+                self.player.change_y = 0
 
-    def is_game_over(self):
         if self.player.lives <= 0:
-            print("GAME OVER – נגמרו החיים.")
-            return True
-        if len(self.coins) == 0:
-            print("YOU WIN – אספת את כל המטבעות!")
-            return True
-        return False
+            self.game_state = "GAME_OVER"
 
-    def run(self):
-        print("ברוך הבא לפקמן קונסול!")
-        print("השליטה: w = למעלה, s = למטה, a = שמאלה, d = ימינה, q = יציאה.")
-        while True:
-            self.render()
+        if len(self.coin_list) == 0:
+            self.game_state = "WIN"
 
-            if self.is_game_over():
-                break
+    def on_key_press(self, key, modifiers):
+        if self.game_state == "PLAYING":
+            self.player.change_x = 0
+            self.player.change_y = 0
 
-            command = input("לאן לזוז? (w/a/s/d/q): ").strip().lower()
-            if command == "q":
-                print("יציאה מהמשחק.")
-                break
+            if key == arcade.key.UP:
+                self.player.change_y = PLAYER_SPEED
+            elif key == arcade.key.DOWN:
+                self.player.change_y = -PLAYER_SPEED
+            elif key == arcade.key.LEFT:
+                self.player.change_x = -PLAYER_SPEED
+            elif key == arcade.key.RIGHT:
+                self.player.change_x = PLAYER_SPEED
+        else:
+            # במסך סיום: ENTER → התחלה מחדש
+            if key == arcade.key.ENTER:
+                self.setup()
 
-            self.handle_player_move(command)
-            self.move_ghosts()
 
-
+# =====================
+# הפעלה
+# =====================
 if __name__ == "__main__":
-    game = ConsolePacmanGame(LEVEL_MAP)
-    game.run()
+    game = Game()
+    game.setup()
+    arcade.run()
