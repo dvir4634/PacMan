@@ -4,20 +4,28 @@ import random
 # =====================
 # קבועים
 # =====================
-TILE_SIZE = 40
-SCREEN_WIDTH = 11 * TILE_SIZE
-SCREEN_HEIGHT = 4 * TILE_SIZE
+TILE_SIZE = 32
+#אחיה מימרן
+LEVEL_MAP = [
+    "####################",
+    "#P.......#........G#",
+    "#.######.#.######..#",
+    "#........#.........#",
+    "#.######.#.######..#",
+    "#........G.....G...#",
+    "####################",
+]
+
+ROWS = len(LEVEL_MAP)
+COLS = len(LEVEL_MAP[0])
+
+SCREEN_WIDTH = COLS * TILE_SIZE
+SCREEN_HEIGHT = ROWS * TILE_SIZE
 SCREEN_TITLE = "Arcade Pacman"
 
 PLAYER_SPEED = 3
 ENEMY_SPEED = 2
 
-LEVEL_MAP = [
-    "###########",
-    "#P....G...#",
-    "#.........#",
-    "###########",
-]
 
 # =====================
 # מחלקות
@@ -31,7 +39,7 @@ class Player(arcade.Sprite):
         self.start_x = x
         self.start_y = y
         self.score = 0
-        self.lives = 3
+        self.lives = 3  # ❤️ שלוש פסילות
 
 
 class Enemy(arcade.Sprite):
@@ -76,20 +84,20 @@ class Game(arcade.Window):
 
         self.player = None
         self.physics_engine = None
+        self.game_state = "PLAYING"
 
-        self.game_state = "PLAYING"  # אפשרויות: PLAYING, GAME_OVER, WIN
+        self.hit_cooldown = 0  # למניעת הורדת כמה לבבות ברצף
 
     def setup(self):
-        # מחיקות של רשימות קיימות (במקרה של Restart)
         self.wall_list = arcade.SpriteList()
         self.coin_list = arcade.SpriteList()
         self.enemy_list = arcade.SpriteList()
         self.player_list = arcade.SpriteList()
         self.player = None
+        self.hit_cooldown = 0
 
         for row_i, row in enumerate(reversed(LEVEL_MAP)):
             for col_i, cell in enumerate(row):
-
                 x = col_i * TILE_SIZE + TILE_SIZE // 2
                 y = row_i * TILE_SIZE + TILE_SIZE // 2
 
@@ -117,41 +125,54 @@ class Game(arcade.Window):
 
         self.game_state = "PLAYING"
 
+    # ❤️ ציור לב
+    def draw_heart(self, x, y, size=10):
+        arcade.draw_circle_filled(x - size / 2, y, size, arcade.color.RED)
+        arcade.draw_circle_filled(x + size / 2, y, size, arcade.color.RED)
+        arcade.draw_triangle_filled(
+            x - size,
+            y,
+            x + size,
+            y,
+            x,
+            y - size * 1.8,
+            arcade.color.RED,
+        )
+
     def on_draw(self):
-        self.clear()  # שימוש נכון במקום start_render
+        self.clear()
 
         if self.game_state == "PLAYING":
             self.wall_list.draw()
             self.coin_list.draw()
             self.enemy_list.draw()
             self.player_list.draw()
+
+            # ניקוד
             arcade.draw_text(
-                f"Score: {self.player.score}   Lives: {self.player.lives}",
+                f"Score: {self.player.score}",
                 10,
-                SCREEN_HEIGHT - 20,
+                SCREEN_HEIGHT - 40,
                 arcade.color.WHITE,
                 14,
             )
+
+            # ❤️ לבבות
+            for i in range(self.player.lives):
+                self.draw_heart(30 + i * 35, SCREEN_HEIGHT - 15)
+
         else:
-            # מסך סיום
-            if self.game_state == "GAME_OVER":
-                arcade.draw_text(
-                    "GAME OVER",
-                    SCREEN_WIDTH / 2,
-                    SCREEN_HEIGHT / 2 + 20,
-                    arcade.color.RED,
-                    36,
-                    anchor_x="center",
-                )
-            else:
-                arcade.draw_text(
-                    "YOU WIN!",
-                    SCREEN_WIDTH / 2,
-                    SCREEN_HEIGHT / 2 + 20,
-                    arcade.color.GREEN,
-                    36,
-                    anchor_x="center",
-                )
+            text = "GAME OVER" if self.game_state == "GAME_OVER" else "YOU WIN!"
+            color = arcade.color.RED if self.game_state == "GAME_OVER" else arcade.color.GREEN
+
+            arcade.draw_text(
+                text,
+                SCREEN_WIDTH / 2,
+                SCREEN_HEIGHT / 2 + 20,
+                color,
+                36,
+                anchor_x="center",
+            )
 
             arcade.draw_text(
                 "Press ENTER to Restart",
@@ -164,16 +185,21 @@ class Game(arcade.Window):
 
     def on_update(self, delta_time):
         if self.game_state != "PLAYING":
-            return  # לא מעדכנים כשבמסך סיום
+            return
 
         self.physics_engine.update()
 
+        if self.hit_cooldown > 0:
+            self.hit_cooldown -= 1
+
+        # מטבעות
         for coin in arcade.check_for_collision_with_list(
             self.player, self.coin_list
         ):
             self.player.score += coin.value
             coin.remove_from_sprite_lists()
 
+        # אויבים
         for enemy in self.enemy_list:
             enemy.center_x += enemy.change_x
             enemy.center_y += enemy.change_y
@@ -183,8 +209,9 @@ class Game(arcade.Window):
                 enemy.center_y -= enemy.change_y
                 enemy.pick_new_direction()
 
-            if arcade.check_for_collision(self.player, enemy):
+            if arcade.check_for_collision(self.player, enemy) and self.hit_cooldown == 0:
                 self.player.lives -= 1
+                self.hit_cooldown = 60  # שנייה חסינות
                 self.player.center_x = self.player.start_x
                 self.player.center_y = self.player.start_y
                 self.player.change_x = 0
@@ -210,7 +237,6 @@ class Game(arcade.Window):
             elif key == arcade.key.RIGHT:
                 self.player.change_x = PLAYER_SPEED
         else:
-            # במסך סיום: ENTER → התחלה מחדש
             if key == arcade.key.ENTER:
                 self.setup()
 
